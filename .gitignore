@@ -1,0 +1,25 @@
+﻿# Python
+.venv/
+__pycache__/
+*.pyc
+.env
+
+# dbt generated files
+target/
+dbt_packages/
+logs/
+profiles.yml
+
+# Credentials
+application_default_credentials.json
+service-account*.json
+
+# Local/editor files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Raw data should be reproducible from source
+data/raw/*
+!data/raw/.gitkeep
