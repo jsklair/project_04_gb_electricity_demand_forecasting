@@ -1,0 +1,30 @@
+﻿{
+  "forecast_performance": {
+    "resource_id": "08e41551-80f8-4e28-a416-ea473a695db9",
+    "output_file": "neso_day_ahead_forecast_performance.csv"
+  },
+  "historic_demand_2021": {
+    "resource_id": "18c69c42-f20d-46f0-84e9-e279045befc6",
+    "output_file": "neso_historic_demand_2021.csv"
+  },
+  "historic_demand_2022": {
+    "resource_id": "bb44a1b5-75b1-4db2-8491-257f23385006",
+    "output_file": "neso_historic_demand_2022.csv"
+  },
+  "historic_demand_2023": {
+    "resource_id": "bf5ab335-9b40-4ea4-b93a-ab4af7bce003",
+    "output_file": "neso_historic_demand_2023.csv"
+  },
+  "historic_demand_2024": {
+    "resource_id": "f6d02c0f-957b-48cb-82ee-09003f2ba759",
+    "output_file": "neso_historic_demand_2024.csv"
+  },
+  "historic_demand_2025": {
+    "resource_id": "b2bde559-3455-4021-b179-dfe60c0337b0",
+    "output_file": "neso_historic_demand_2025.csv"
+  },
+  "historic_demand_2026": {
+    "resource_id": "8a4a771c-3929-4e56-93ad-cdf13219dea5",
+    "output_file": "neso_historic_demand_2026.csv"
+  }
+}
