@@ -8,7 +8,7 @@ Using only information that would have been available when the day-ahead forecas
 
 ## Current status
 
-Project setup, source validation and reproducible NESO data acquisition are complete.
+Project setup, source validation, reproducible NESO data acquisition and BigQuery raw ingestion are complete.
 
 The initial feasibility work confirmed:
 
@@ -19,7 +19,7 @@ The initial feasibility work confirmed:
 - reconciliation of NESO's published forecast errors;
 - BigQuery and dbt working together successfully for transformation and testing.
 
-The next stage is loading the reproducible raw sources into BigQuery and building the production dbt staging layer.
+The next stage is building the production dbt source and staging layer over the BigQuery raw tables.
 
 ## Planned workflow
 
