@@ -1,4 +1,4 @@
-﻿# Project 04: Great Britain Day-Ahead Electricity Demand Forecasting
+# Project 04: Great Britain Day-Ahead Electricity Demand Forecasting
 
 An in-progress forecasting project using NESO electricity-demand data to test how well a transparent model can predict Great Britain National Demand at half-hourly settlement-period level.
 
@@ -8,7 +8,7 @@ Using only information that would have been available when the day-ahead forecas
 
 ## Current status
 
-Project setup, source validation, reproducible NESO data acquisition and BigQuery raw ingestion are complete.
+Project setup, source validation, reproducible NESO data acquisition, BigQuery raw ingestion and the production dbt source layer are complete.
 
 The initial feasibility work confirmed:
 
@@ -19,7 +19,7 @@ The initial feasibility work confirmed:
 - reconciliation of NESO's published forecast errors;
 - BigQuery and dbt working together successfully for transformation and testing.
 
-The next stage is building the production dbt source and staging layer over the BigQuery raw tables.
+The next stage is building the dbt staging layer over the validated BigQuery raw sources.
 
 ## Planned workflow
 
@@ -52,5 +52,7 @@ See [`docs/source_architecture.md`](docs/source_architecture.md) for the initial
 - [`docs/project_plan.md`](docs/project_plan.md)
 - [`docs/source_architecture.md`](docs/source_architecture.md)
 - [`docs/data_acquisition.md`](docs/data_acquisition.md)
+- [`docs/bigquery_raw_ingestion.md`](docs/bigquery_raw_ingestion.md)
+- [`docs/dbt_source_layer.md`](docs/dbt_source_layer.md)
 
 This project is in active development.

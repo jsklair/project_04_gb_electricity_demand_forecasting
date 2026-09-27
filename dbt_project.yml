@@ -1,0 +1,11 @@
+﻿name: 'project_04_gb_electricity_demand_forecasting'
+version: '1.0.0'
+config-version: 2
+
+profile: 'project_04_gb_electricity_demand_forecasting'
+
+model-paths: ["models"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
