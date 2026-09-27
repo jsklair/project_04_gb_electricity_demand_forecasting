@@ -1,0 +1,106 @@
+version: 2
+
+sources:
+  - name: neso_raw
+    description: Raw NESO source tables loaded reproducibly into BigQuery.
+    database: gb-demand-forecasting-p04
+    schema: p04_raw
+
+    tables:
+      - name: forecast_performance
+        identifier: raw_forecast_performance
+        description: NESO day-ahead half-hourly demand forecast performance data.
+        columns:
+          - name: Date
+            data_tests:
+              - not_null
+          - name: Settlement_Period
+            data_tests:
+              - not_null
+          - name: Demand_Forecast
+            data_tests:
+              - not_null
+          - name: Demand_Outturn
+            data_tests:
+              - not_null
+          - name: Publish_Datetime
+            data_tests:
+              - not_null
+
+      - name: historic_demand_2021
+        identifier: raw_historic_demand_2021
+        columns:
+          - name: SETTLEMENT_DATE
+            data_tests:
+              - not_null
+          - name: SETTLEMENT_PERIOD
+            data_tests:
+              - not_null
+          - name: ND
+            data_tests:
+              - not_null
+
+      - name: historic_demand_2022
+        identifier: raw_historic_demand_2022
+        columns:
+          - name: SETTLEMENT_DATE
+            data_tests:
+              - not_null
+          - name: SETTLEMENT_PERIOD
+            data_tests:
+              - not_null
+          - name: ND
+            data_tests:
+              - not_null
+
+      - name: historic_demand_2023
+        identifier: raw_historic_demand_2023
+        columns:
+          - name: SETTLEMENT_DATE
+            data_tests:
+              - not_null
+          - name: SETTLEMENT_PERIOD
+            data_tests:
+              - not_null
+          - name: ND
+            data_tests:
+              - not_null
+
+      - name: historic_demand_2024
+        identifier: raw_historic_demand_2024
+        columns:
+          - name: SETTLEMENT_DATE
+            data_tests:
+              - not_null
+          - name: SETTLEMENT_PERIOD
+            data_tests:
+              - not_null
+          - name: ND
+            data_tests:
+              - not_null
+
+      - name: historic_demand_2025
+        identifier: raw_historic_demand_2025
+        columns:
+          - name: SETTLEMENT_DATE
+            data_tests:
+              - not_null
+          - name: SETTLEMENT_PERIOD
+            data_tests:
+              - not_null
+          - name: ND
+            data_tests:
+              - not_null
+
+      - name: historic_demand_2026
+        identifier: raw_historic_demand_2026
+        columns:
+          - name: SETTLEMENT_DATE
+            data_tests:
+              - not_null
+          - name: SETTLEMENT_PERIOD
+            data_tests:
+              - not_null
+          - name: ND
+            data_tests:
+              - not_null
