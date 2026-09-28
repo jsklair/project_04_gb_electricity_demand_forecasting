@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: stg_neso_forecast_performance
+    description: >
+      Typed staging view for NESO day-ahead half-hourly demand forecast
+      performance. Known conflicting date/settlement-period source grains are
+      deliberately preserved for explicit downstream treatment.
+
+    columns:
+      - name: source_row_id
+        description: Source record identifier supplied by NESO.
+        data_tests:
+          - not_null
+          - unique
+
+      - name: settlement_date
+        data_tests:
+          - not_null
+
+      - name: settlement_datetime
+        data_tests:
+          - not_null
+
+      - name: settlement_period
+        data_tests:
+          - not_null
+
+      - name: demand_forecast_mw
+        data_tests:
+          - not_null
+
+      - name: demand_outturn_mw
+        data_tests:
+          - not_null
+
+      - name: publish_datetime
+        description: Forecast publication timestamp used for leakage control.
+        data_tests:
+          - not_null
