@@ -1,0 +1,32 @@
+version: 2
+
+models:
+  - name: stg_neso_historic_demand
+    description: >
+      Unified typed staging view for NESO historic demand data from 2021
+      onwards. Annual schema and date-format changes are reconciled explicitly,
+      while valid 46- and 50-period daylight-saving days are preserved.
+
+    columns:
+      - name: source_year
+        description: Year of the annual NESO source table.
+        data_tests:
+          - not_null
+
+      - name: source_row_id
+        description: Source record identifier within the annual NESO table.
+        data_tests:
+          - not_null
+
+      - name: settlement_date
+        data_tests:
+          - not_null
+
+      - name: settlement_period
+        data_tests:
+          - not_null
+
+      - name: national_demand_mw
+        description: NESO National Demand, used as the main historic demand series.
+        data_tests:
+          - not_null
