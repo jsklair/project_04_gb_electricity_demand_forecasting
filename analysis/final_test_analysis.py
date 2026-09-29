@@ -1,77 +1,18 @@
-from datetime import timedelta
-
-import holidays
 import pandas as pd
 from google.cloud import bigquery
 
-from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, root_mean_squared_error
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
-
-
-PROJECT_ID = "gb-demand-forecasting-p04"
-TARGET = "national_demand_mw"
-
-CATEGORICAL_FEATURES = [
-    "settlement_period",
-    "day_of_week",
-    "calendar_month",
-    "is_england_wales_bank_holiday",
-    "is_scotland_bank_holiday",
-    "lag_2d_is_england_wales_bank_holiday",
-    "lag_2d_is_scotland_bank_holiday",
-    "lag_7d_is_england_wales_bank_holiday",
-    "lag_7d_is_scotland_bank_holiday",
-    "lag_14d_is_england_wales_bank_holiday",
-    "lag_14d_is_scotland_bank_holiday",
-]
-
-NUMERIC_FEATURES = [
-    "demand_lag_2d_mw",
-    "demand_lag_7d_mw",
-    "demand_lag_14d_mw",
-]
-
-FEATURE_COLUMNS = CATEGORICAL_FEATURES + NUMERIC_FEATURES
-
-
-def calculate_metrics(actual, predicted):
-    error = predicted - actual
-
-    return {
-        "mae_mw": mean_absolute_error(actual, predicted),
-        "rmse_mw": root_mean_squared_error(actual, predicted),
-        "bias_mw": error.mean(),
-        "mape_pct": (error.abs() / actual).mean() * 100,
-    }
-
-
-def build_dense_preprocessor():
-    return ColumnTransformer(
-        transformers=[
-            (
-                "categorical",
-                OneHotEncoder(
-                    drop="first",
-                    handle_unknown="ignore",
-                    sparse_output=False,
-                ),
-                CATEGORICAL_FEATURES,
-            ),
-            (
-                "numeric",
-                "passthrough",
-                NUMERIC_FEATURES,
-            ),
-        ]
-    )
+from forecasting_utils import (
+    FEATURE_COLUMNS,
+    PROJECT_ID,
+    TARGET,
+    add_bank_holiday_features,
+    build_hist_gradient_boosting_model,
+    build_linear_model,
+    calculate_metrics,
+)
 
 
 client = bigquery.Client(project=PROJECT_ID)
-
 
 feature_query = """
 select
@@ -102,51 +43,14 @@ df["settlement_date"] = pd.to_datetime(
     df["settlement_date"]
 ).dt.date
 
-
-# Calendar information is known before forecast issue and is therefore safe.
-england_wales_holidays = holidays.UnitedKingdom(
-    years=[2021, 2022, 2023, 2024, 2025],
-    subdiv="England",
-)
-
-scotland_holidays = holidays.UnitedKingdom(
-    years=[2021, 2022, 2023, 2024, 2025],
-    subdiv="Scotland",
-)
-
-
-df["is_england_wales_bank_holiday"] = df["settlement_date"].map(
-    lambda date: date in england_wales_holidays
-)
-
-df["is_scotland_bank_holiday"] = df["settlement_date"].map(
-    lambda date: date in scotland_holidays
-)
-
-
-for lag_days in [2, 7, 14]:
-    lag_dates = df["settlement_date"].map(
-        lambda date: date - timedelta(days=lag_days)
-    )
-
-    df[f"lag_{lag_days}d_is_england_wales_bank_holiday"] = (
-        lag_dates.map(
-            lambda date: date in england_wales_holidays
-        )
-    )
-
-    df[f"lag_{lag_days}d_is_scotland_bank_holiday"] = (
-        lag_dates.map(
-            lambda date: date in scotland_holidays
-        )
-    )
-
+df = add_bank_holiday_features(df)
 
 model_data = df.dropna(
     subset=FEATURE_COLUMNS + [TARGET]
 ).copy()
 
-
+# Model choice and features were frozen using development and validation data.
+# The models are refitted on all available pre-test data: 2021-2024.
 training = model_data[
     model_data["evaluation_split"].isin(
         ["development", "validation"]
@@ -157,47 +61,22 @@ final_test = model_data[
     model_data["evaluation_split"] == "final_test"
 ].copy()
 
-
-# Final-test guardrails.
+# Guardrails against accidentally evaluating the wrong period or sample.
 assert training["settlement_date"].max().year == 2024
 assert final_test["settlement_date"].min().year == 2025
 assert final_test["settlement_date"].max().year == 2025
+assert set(final_test["evaluation_split"].unique()) == {"final_test"}
 assert len(final_test) == 17512
-
 
 X_training = training[FEATURE_COLUMNS]
 y_training = training[TARGET]
 
 X_final_test = final_test[FEATURE_COLUMNS]
 
-
-# Frozen transparent model.
-linear_model = Pipeline(
-    steps=[
-        ("preprocessor", build_dense_preprocessor()),
-        ("regression", LinearRegression()),
-    ]
-)
-
-
-# Frozen nonlinear model.
-# These hyperparameters were fixed from 2024 validation before the 2025 test was opened.
-nonlinear_model = Pipeline(
-    steps=[
-        ("preprocessor", build_dense_preprocessor()),
-        (
-            "regression",
-            HistGradientBoostingRegressor(
-                learning_rate=0.05,
-                max_iter=200,
-                max_leaf_nodes=31,
-                l2_regularization=1.0,
-                random_state=42,
-            ),
-        ),
-    ]
-)
-
+# Both specifications were frozen from 2024 validation before the 2025
+# final test was opened.
+linear_model = build_linear_model(dense=True)
+nonlinear_model = build_hist_gradient_boosting_model()
 
 linear_model.fit(
     X_training,
@@ -208,7 +87,6 @@ nonlinear_model.fit(
     X_training,
     y_training,
 )
-
 
 final_test["seasonal_naive_forecast_mw"] = (
     final_test["demand_lag_7d_mw"]
@@ -222,10 +100,8 @@ final_test["nonlinear_forecast_mw"] = nonlinear_model.predict(
     X_final_test
 )
 
-
-# NESO's operational day-ahead forecast.
-# We use only the forecast itself, not NESO's published error measures,
-# because all models must be scored against the same historic-ND target.
+# NESO's operational day-ahead forecast is rescored against the same
+# historic National Demand target used for the portfolio models.
 neso_query = """
 select
     settlement_date,
@@ -246,7 +122,6 @@ neso["settlement_date"] = pd.to_datetime(
     neso["settlement_date"]
 ).dt.date
 
-
 # 2025 should have one NESO forecast per settlement-date/period grain.
 duplicate_neso_grains = neso.duplicated(
     subset=[
@@ -258,7 +133,6 @@ duplicate_neso_grains = neso.duplicated(
 
 assert not duplicate_neso_grains.any()
 
-
 comparison = final_test.merge(
     neso,
     on=[
@@ -269,13 +143,11 @@ comparison = final_test.merge(
     validate="one_to_one",
 )
 
-
-# Every one of the 17,512 model-eligible rows must also have a NESO forecast.
+# Every model-eligible 2025 row must also have a NESO forecast.
 missing_neso = comparison["neso_forecast_mw"].isna().sum()
 
 assert missing_neso == 0
 assert len(comparison) == 17512
-
 
 models = {
     "Seasonal naive (7-day lag)": "seasonal_naive_forecast_mw",
@@ -284,7 +156,6 @@ models = {
     "NESO operational forecast": "neso_forecast_mw",
 }
 
-
 metrics = {}
 
 for model_name, forecast_column in models.items():
@@ -292,7 +163,6 @@ for model_name, forecast_column in models.items():
         comparison[TARGET],
         comparison[forecast_column],
     )
-
 
 print("2025 LIKE-FOR-LIKE FINAL TEST")
 print("=============================")
@@ -315,7 +185,6 @@ for model_name, model_metrics in metrics.items():
     print(f"  MAPE: {model_metrics['mape_pct']:.3f}%")
     print()
 
-
 nonlinear_mae = metrics[
     "Histogram gradient boosting"
 ]["mae_mw"]
@@ -330,7 +199,6 @@ neso_advantage_pct = (
     * 100
 )
 
-
 print("NESO comparison")
 print("---------------")
 print(
@@ -342,10 +210,11 @@ print(
 # Frozen-model error analysis
 #
 # Everything below is diagnostic only. The 2025 result has already been
-# opened and the models are frozen. These results must not be used to alter
-# features, model family or hyperparameters.
+# opened and the model specifications remain frozen. These diagnostics are
+# not used to alter features, model family or hyperparameters.
 # ---------------------------------------------------------------------------
 
+# BigQuery DAYOFWEEK uses Sunday=1 and Saturday=7.
 comparison["is_weekend"] = comparison["day_of_week"].isin([1, 7])
 
 forecast_columns = {
@@ -364,7 +233,6 @@ for short_name, forecast_column in forecast_columns.items():
     comparison[f"{short_name}_abs_error_mw"] = (
         comparison[f"{short_name}_error_mw"].abs()
     )
-
 
 print()
 print("2025 MAE by month")
@@ -385,7 +253,6 @@ monthly = (
 
 print(monthly.to_string())
 
-
 print()
 print("2025 MAE by weekday / weekend")
 print("-----------------------------")
@@ -404,7 +271,6 @@ weekend_summary = (
 )
 
 print(weekend_summary.to_string())
-
 
 print()
 print("2025 MAE by target-date bank-holiday status")
@@ -430,7 +296,6 @@ holiday_summary = (
 
 print(holiday_summary.to_string())
 
-
 print()
 print("Worst settlement periods for gradient boosting")
 print("----------------------------------------------")
@@ -455,7 +320,6 @@ settlement_summary = (
 
 print(settlement_summary.to_string())
 
-
 # Demand quartiles are retrospective diagnostic groups only.
 # They are based on the realised 2025 target and are not model features.
 comparison["demand_quartile"] = pd.qcut(
@@ -468,7 +332,6 @@ comparison["demand_quartile"] = pd.qcut(
         "Q4 highest demand",
     ],
 )
-
 
 print()
 print("2025 MAE by realised demand quartile")
@@ -492,7 +355,6 @@ demand_summary = (
 )
 
 print(demand_summary.to_string())
-
 
 print()
 print("2025 daily error: worst days for gradient boosting")
@@ -520,7 +382,6 @@ daily_summary = (
 )
 
 print(daily_summary.to_string())
-
 
 print()
 print("Point-by-point forecast comparison")
@@ -555,7 +416,6 @@ print(
     "Gradient boosting beats NESO: "
     f"{nonlinear_beats_neso:.2f}% of settlement periods"
 )
-
 
 print()
 print("Largest individual gradient-boosting errors")

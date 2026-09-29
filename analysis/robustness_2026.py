@@ -1,77 +1,22 @@
-from datetime import timedelta
+from datetime import date
 
-import holidays
 import pandas as pd
 from google.cloud import bigquery
 
-from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, root_mean_squared_error
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
+from forecasting_utils import (
+    FEATURE_COLUMNS,
+    PROJECT_ID,
+    TARGET,
+    add_bank_holiday_features,
+    build_hist_gradient_boosting_model,
+    build_linear_model,
+    calculate_metrics,
+)
 
 
-PROJECT_ID = "gb-demand-forecasting-p04"
-TARGET = "national_demand_mw"
-
-CATEGORICAL_FEATURES = [
-    "settlement_period",
-    "day_of_week",
-    "calendar_month",
-    "is_england_wales_bank_holiday",
-    "is_scotland_bank_holiday",
-    "lag_2d_is_england_wales_bank_holiday",
-    "lag_2d_is_scotland_bank_holiday",
-    "lag_7d_is_england_wales_bank_holiday",
-    "lag_7d_is_scotland_bank_holiday",
-    "lag_14d_is_england_wales_bank_holiday",
-    "lag_14d_is_scotland_bank_holiday",
-]
-
-NUMERIC_FEATURES = [
-    "demand_lag_2d_mw",
-    "demand_lag_7d_mw",
-    "demand_lag_14d_mw",
-]
-
-FEATURE_COLUMNS = CATEGORICAL_FEATURES + NUMERIC_FEATURES
-
-
-def calculate_metrics(actual, predicted):
-    error = predicted - actual
-
-    return {
-        "mae_mw": mean_absolute_error(actual, predicted),
-        "rmse_mw": root_mean_squared_error(actual, predicted),
-        "bias_mw": error.mean(),
-        "mape_pct": (error.abs() / actual).mean() * 100,
-    }
-
-
-def build_dense_preprocessor():
-    return ColumnTransformer(
-        transformers=[
-            (
-                "categorical",
-                OneHotEncoder(
-                    drop="first",
-                    handle_unknown="ignore",
-                    sparse_output=False,
-                ),
-                CATEGORICAL_FEATURES,
-            ),
-            (
-                "numeric",
-                "passthrough",
-                NUMERIC_FEATURES,
-            ),
-        ]
-    )
-
+ROBUSTNESS_END_DATE = date(2026, 9, 2)
 
 client = bigquery.Client(project=PROJECT_ID)
-
 
 feature_query = """
 select
@@ -85,6 +30,13 @@ select
     demand_lag_14d_mw,
     evaluation_split
 from `gb-demand-forecasting-p04.p04_dbt.int_demand_model_features`
+where evaluation_split in (
+    'development',
+    'validation',
+    'final_test',
+    'robustness'
+)
+  and settlement_date <= date '2026-09-02'
 order by settlement_date, settlement_period
 """
 
@@ -97,53 +49,14 @@ df["settlement_date"] = pd.to_datetime(
     df["settlement_date"]
 ).dt.date
 
-
-england_wales_holidays = holidays.UnitedKingdom(
-    years=[2021, 2022, 2023, 2024, 2025, 2026],
-    subdiv="England",
-)
-
-scotland_holidays = holidays.UnitedKingdom(
-    years=[2021, 2022, 2023, 2024, 2025, 2026],
-    subdiv="Scotland",
-)
-
-
-df["is_england_wales_bank_holiday"] = df["settlement_date"].map(
-    lambda date: date in england_wales_holidays
-)
-
-df["is_scotland_bank_holiday"] = df["settlement_date"].map(
-    lambda date: date in scotland_holidays
-)
-
-
-for lag_days in [2, 7, 14]:
-    lag_dates = df["settlement_date"].map(
-        lambda date: date - timedelta(days=lag_days)
-    )
-
-    df[f"lag_{lag_days}d_is_england_wales_bank_holiday"] = (
-        lag_dates.map(
-            lambda date: date in england_wales_holidays
-        )
-    )
-
-    df[f"lag_{lag_days}d_is_scotland_bank_holiday"] = (
-        lag_dates.map(
-            lambda date: date in scotland_holidays
-        )
-    )
-
+df = add_bank_holiday_features(df)
 
 model_data = df.dropna(
     subset=FEATURE_COLUMNS + [TARGET]
 ).copy()
 
-
-# The model specification remains frozen.
-# The 2025 final test is complete, so all 2021-2025 history can now
-# be used for fitting before the separate 2026 robustness evaluation.
+# The specification remains frozen. The completed 2025 final-test year can
+# now be included in fitting for this subsequent 2026 robustness check.
 training = model_data[
     model_data["evaluation_split"].isin(
         [
@@ -158,47 +71,22 @@ robustness = model_data[
     model_data["evaluation_split"] == "robustness"
 ].copy()
 
-
+# Guardrails keep this robustness exercise separate from model development
+# and fix the published evaluation window at 2 September 2026.
 assert training["settlement_date"].max().year == 2025
 assert robustness["settlement_date"].min().year == 2026
-assert robustness["settlement_date"].max().year == 2026
+assert robustness["settlement_date"].max() == ROBUSTNESS_END_DATE
 assert set(robustness["evaluation_split"].unique()) == {"robustness"}
-
 
 X_training = training[FEATURE_COLUMNS]
 y_training = training[TARGET]
 
 X_robustness = robustness[FEATURE_COLUMNS]
 
-
-# Frozen transparent model.
-linear_model = Pipeline(
-    steps=[
-        ("preprocessor", build_dense_preprocessor()),
-        ("regression", LinearRegression()),
-    ]
-)
-
-
-# Frozen nonlinear challenger.
-# The specification was fixed from 2024 validation before the 2025 test was opened.
-# For this later robustness check, it is refitted using all 2021-2025 history.
-nonlinear_model = Pipeline(
-    steps=[
-        ("preprocessor", build_dense_preprocessor()),
-        (
-            "regression",
-            HistGradientBoostingRegressor(
-                learning_rate=0.05,
-                max_iter=200,
-                max_leaf_nodes=31,
-                l2_regularization=1.0,
-                random_state=42,
-            ),
-        ),
-    ]
-)
-
+# Both model specifications remain unchanged from the earlier validation
+# stage; only the fitting sample expands to include completed 2025 history.
+linear_model = build_linear_model(dense=True)
+nonlinear_model = build_hist_gradient_boosting_model()
 
 linear_model.fit(
     X_training,
@@ -209,7 +97,6 @@ nonlinear_model.fit(
     X_training,
     y_training,
 )
-
 
 robustness["seasonal_naive_forecast_mw"] = (
     robustness["demand_lag_7d_mw"]
@@ -223,8 +110,8 @@ robustness["nonlinear_forecast_mw"] = nonlinear_model.predict(
     X_robustness
 )
 
-
-# NESO operational day-ahead forecasts.
+# Restrict NESO data to the same fixed robustness window. This prevents a
+# later warehouse refresh from silently extending the published analysis.
 neso_query = """
 select
     settlement_date,
@@ -232,6 +119,7 @@ select
     demand_forecast_mw as neso_forecast_mw
 from `gb-demand-forecasting-p04.p04_dbt.stg_neso_forecast_performance`
 where settlement_date >= date '2026-01-01'
+  and settlement_date <= date '2026-09-02'
 order by settlement_date, settlement_period
 """
 
@@ -244,7 +132,6 @@ neso["settlement_date"] = pd.to_datetime(
     neso["settlement_date"]
 ).dt.date
 
-
 duplicate_neso_grains = neso.duplicated(
     subset=[
         "settlement_date",
@@ -254,7 +141,6 @@ duplicate_neso_grains = neso.duplicated(
 )
 
 assert not duplicate_neso_grains.any()
-
 
 comparison = robustness.merge(
     neso,
@@ -266,7 +152,6 @@ comparison = robustness.merge(
     validate="one_to_one",
 )
 
-
 missing_neso_rows = comparison[
     comparison["neso_forecast_mw"].isna()
 ].copy()
@@ -275,10 +160,11 @@ comparison_common = comparison.dropna(
     subset=["neso_forecast_mw"]
 ).copy()
 
-
 assert len(comparison_common) > 0
-assert len(comparison_common) + len(missing_neso_rows) == len(robustness)
-
+assert (
+    len(comparison_common) + len(missing_neso_rows)
+    == len(robustness)
+)
 
 print("2026 ROBUSTNESS EVALUATION")
 print("==========================")
@@ -290,7 +176,7 @@ print(
     f"{robustness['settlement_date'].min()} to "
     f"{robustness['settlement_date'].max()}"
 )
-print(f"NESO 2026 source rows:            {len(neso):,}")
+print(f"NESO source rows in fixed window: {len(neso):,}")
 print(f"Rows without matching NESO:       {len(missing_neso_rows):,}")
 print(f"Common four-model sample:         {len(comparison_common):,}")
 print(
@@ -299,7 +185,6 @@ print(
     f"{comparison_common['settlement_date'].max()}"
 )
 print()
-
 
 if len(missing_neso_rows) > 0:
     print("NESO coverage exclusions")
@@ -315,7 +200,6 @@ if len(missing_neso_rows) > 0:
     print(excluded_dates.to_string())
     print()
 
-
 # ---------------------------------------------------------------------------
 # Portfolio-model robustness on all model-eligible 2026 rows
 # ---------------------------------------------------------------------------
@@ -326,7 +210,6 @@ portfolio_models = {
     "Histogram gradient boosting": "nonlinear_forecast_mw",
 }
 
-
 portfolio_metrics = {}
 
 for model_name, forecast_column in portfolio_models.items():
@@ -334,7 +217,6 @@ for model_name, forecast_column in portfolio_models.items():
         robustness[TARGET],
         robustness[forecast_column],
     )
-
 
 print("Portfolio models: all eligible 2026 robustness rows")
 print("---------------------------------------------------")
@@ -347,7 +229,6 @@ for model_name, model_metrics in portfolio_metrics.items():
     print(f"  MAPE: {model_metrics['mape_pct']:.3f}%")
     print()
 
-
 # ---------------------------------------------------------------------------
 # Fair four-model comparison on common rows only
 # ---------------------------------------------------------------------------
@@ -359,7 +240,6 @@ common_models = {
     "NESO operational forecast": "neso_forecast_mw",
 }
 
-
 common_metrics = {}
 
 for model_name, forecast_column in common_models.items():
@@ -367,7 +247,6 @@ for model_name, forecast_column in common_models.items():
         comparison_common[TARGET],
         comparison_common[forecast_column],
     )
-
 
 print("Like-for-like common-sample comparison")
 print("--------------------------------------")
@@ -379,7 +258,6 @@ for model_name, model_metrics in common_metrics.items():
     print(f"  Bias: {model_metrics['bias_mw']:,.2f} MW")
     print(f"  MAPE: {model_metrics['mape_pct']:.3f}%")
     print()
-
 
 nonlinear_mae = common_metrics[
     "Histogram gradient boosting"
@@ -395,7 +273,6 @@ neso_advantage_pct = (
     * 100
 )
 
-
 print("NESO comparison")
 print("---------------")
 print(
@@ -403,7 +280,6 @@ print(
     f"{neso_advantage_pct:.2f}%"
 )
 print()
-
 
 # ---------------------------------------------------------------------------
 # Monthly common-sample robustness
@@ -419,7 +295,6 @@ for short_name, forecast_column in {
         comparison_common[forecast_column]
         - comparison_common[TARGET]
     ).abs()
-
 
 print("Common-sample MAE by month")
 print("--------------------------")
