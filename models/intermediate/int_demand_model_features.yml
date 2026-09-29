@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: int_demand_model_features
+    description: >
+      Analysis-ready demand feature layer for leakage-safe day-ahead forecasting.
+      The model retains the historic national-demand target, deterministic calendar
+      features and 2-, 7- and 14-day same-settlement-period demand lags. The
+      evaluation split is chronological and keeps calendar year 2025 as the final
+      held-out test period, with 2026 treated separately as a robustness period.
+
+    columns:
+      - name: settlement_date
+        data_tests:
+          - not_null
+
+      - name: settlement_period
+        data_tests:
+          - not_null
+
+      - name: national_demand_mw
+        description: Primary modelling target from NESO historic National Demand.
+        data_tests:
+          - not_null
+
+      - name: evaluation_split
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - development
+                  - validation
+                  - final_test
+                  - robustness
+
+      - name: calendar_year
+        data_tests:
+          - not_null
+
+      - name: calendar_month
+        data_tests:
+          - not_null
+
+      - name: day_of_week
+        data_tests:
+          - not_null
