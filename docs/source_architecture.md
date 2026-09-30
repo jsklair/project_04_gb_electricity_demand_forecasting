@@ -1,4 +1,6 @@
-﻿# Source and Architecture Specification
+# Source and Architecture Specification
+
+**Status:** This document records the source and architecture decisions made at the start of the project. The architecture was subsequently implemented; the repository README and published case study describe the completed analytical state.
 
 ## Primary sources
 
@@ -21,7 +23,7 @@ Key fields confirmed through the live API:
 - `Absolute_Error`
 - `Publish_Datetime`
 
-`Publish_Datetime` will be treated as the key information timestamp when determining whether a forecasting feature was available at issue time.
+`Publish_Datetime` was treated as the key information timestamp when determining whether a forecasting feature was available at issue time.
 
 A source-validation check confirmed that NESO's published `Absolute_Error` and `APE` use the TRIAD-avoidance-corrected demand outturn when the adjustment is non-zero.
 
@@ -42,7 +44,7 @@ Relevant fields include:
 
 Historic demand may be revised after initial publication. The project will therefore record source/resource metadata and will not claim perfect historical-vintage reconstruction where it cannot be demonstrated.
 
-NESO has also documented a 2026 forecasting-system change and a known Scottish-transfer-data issue. This will be treated as a robustness and data-quality consideration rather than silently ignored.
+NESO also documented a 2026 forecasting-system change and a known Scottish-transfer-data issue. These were treated as robustness and data-quality considerations rather than silently ignored.
 
 ## Settlement-period validation
 
@@ -53,7 +55,7 @@ Live source checks confirmed:
 
 The pipeline must therefore preserve genuine daylight-saving settlement structures rather than forcing every day to 48 rows.
 
-## Proposed architecture
+## Initial proposed architecture
 
 NESO public APIs
 → Python acquisition
@@ -81,23 +83,23 @@ BigQuery and dbt are therefore retained for the main project.
 
 ## Leakage control
 
-A feature register will record:
+The feature register records:
 
 | Feature | Source | Information timestamp | Available at forecast issue? | Decision | Rationale |
 | --- | --- | --- | --- | --- | --- |
 
 Observed future information will not be used as a forecasting feature.
 
-Demand lags will only be included where the required observation would definitely have been available by the relevant forecast publication time.
+Demand lags were included only where the required observation would have occurred before the relevant forecast publication time, with the historical-vintage limitation documented separately.
 
 ## External calendar data
 
-UK bank-holiday data may be added from GOV.UK if profiling shows that it is useful.
+UK bank-holiday information was included as deterministic calendar data.
 
-England and Wales and Scotland will be treated separately where relevant.
+England and Wales and Scotland are treated separately.
 
 ## Weather
 
-Weather is not part of the initial minimum viable model.
+Weather was excluded from the final model.
 
-It will only be added if there is a clear analytical reason and if archived forecast data available at the forecast issue time can be sourced. Observed future weather would constitute leakage and will not be used.
+Observed target-day weather would constitute leakage. A future extension could use archived weather forecasts only where those forecasts can be shown to have been available before the relevant day-ahead forecast was issued.

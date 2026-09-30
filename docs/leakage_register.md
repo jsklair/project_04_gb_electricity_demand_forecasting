@@ -1,5 +1,7 @@
 # Leakage register
 
+**Data leakage** means allowing a model to use information that would not actually have been available when the forecast was made.
+
 This register records whether candidate modelling information would genuinely
 have been available when NESO's day-ahead forecast was issued.
 
