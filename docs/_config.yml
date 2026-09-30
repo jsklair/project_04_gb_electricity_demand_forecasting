@@ -1,0 +1,3 @@
+title: "Great Britain Day-Ahead Electricity Demand Forecasting"
+description: "A leakage-aware half-hourly electricity-demand forecasting case study using NESO data, BigQuery, dbt and Python."
+theme: jekyll-theme-minimal
