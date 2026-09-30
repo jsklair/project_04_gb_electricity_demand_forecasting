@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 from google.cloud import bigquery
 
@@ -11,6 +13,12 @@ from forecasting_utils import (
     calculate_metrics,
 )
 
+
+TABLES_DIR = (
+    Path(__file__).resolve().parents[1]
+    / "outputs"
+    / "tables"
+)
 
 client = bigquery.Client(project=PROJECT_ID)
 
@@ -164,6 +172,15 @@ for model_name, forecast_column in models.items():
         comparison[forecast_column],
     )
 
+metrics_table = (
+    pd.DataFrame.from_dict(
+        metrics,
+        orient="index",
+    )
+    .rename_axis("model")
+    .reset_index()
+)
+
 print("2025 LIKE-FOR-LIKE FINAL TEST")
 print("=============================")
 print()
@@ -300,7 +317,7 @@ print()
 print("Worst settlement periods for gradient boosting")
 print("----------------------------------------------")
 
-settlement_summary = (
+settlement_period_summary = (
     comparison
     .groupby("settlement_period")
     .agg(
@@ -310,15 +327,19 @@ settlement_summary = (
         nonlinear_mae_mw=("nonlinear_abs_error_mw", "mean"),
         neso_mae_mw=("neso_abs_error_mw", "mean"),
     )
+    .round(2)
+)
+
+worst_settlement_periods = (
+    settlement_period_summary
     .sort_values(
         "nonlinear_mae_mw",
         ascending=False,
     )
     .head(15)
-    .round(2)
 )
 
-print(settlement_summary.to_string())
+print(worst_settlement_periods.to_string())
 
 # Demand quartiles are retrospective diagnostic groups only.
 # They are based on the realised 2025 target and are not model features.
@@ -373,15 +394,19 @@ daily_summary = (
         nonlinear_bias_mw=("nonlinear_error_mw", "mean"),
         neso_bias_mw=("neso_error_mw", "mean"),
     )
+    .round(2)
+)
+
+worst_days = (
+    daily_summary
     .sort_values(
         "nonlinear_mae_mw",
         ascending=False,
     )
     .head(15)
-    .round(2)
 )
 
-print(daily_summary.to_string())
+print(worst_days.to_string())
 
 print()
 print("Point-by-point forecast comparison")
@@ -443,3 +468,65 @@ largest_errors = (
 )
 
 print(largest_errors.to_string(index=False))
+
+# ---------------------------------------------------------------------------
+# Reproducible publication tables
+# ---------------------------------------------------------------------------
+
+TABLES_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+metrics_table.to_csv(
+    TABLES_DIR / "final_test_metrics_2025.csv",
+    index=False,
+)
+
+monthly.reset_index().to_csv(
+    TABLES_DIR / "monthly_mae_2025.csv",
+    index=False,
+)
+
+settlement_period_summary.reset_index().to_csv(
+    TABLES_DIR / "settlement_period_mae_2025.csv",
+    index=False,
+)
+
+demand_summary.reset_index().to_csv(
+    TABLES_DIR / "demand_quartile_mae_2025.csv",
+    index=False,
+)
+
+daily_summary.reset_index().to_csv(
+    TABLES_DIR / "daily_mae_2025.csv",
+    index=False,
+)
+
+prediction_columns = [
+    "settlement_date",
+    "settlement_period",
+    "calendar_month",
+    "day_of_week",
+    TARGET,
+    "seasonal_naive_forecast_mw",
+    "linear_forecast_mw",
+    "nonlinear_forecast_mw",
+    "neso_forecast_mw",
+    "naive_error_mw",
+    "linear_error_mw",
+    "nonlinear_error_mw",
+    "neso_error_mw",
+]
+
+comparison[prediction_columns].to_csv(
+    TABLES_DIR / "final_test_predictions_2025.csv",
+    index=False,
+)
+
+print()
+print("Saved publication tables")
+print("------------------------")
+
+for output_path in sorted(TABLES_DIR.glob("*.csv")):
+    print(output_path.relative_to(TABLES_DIR.parent.parent))

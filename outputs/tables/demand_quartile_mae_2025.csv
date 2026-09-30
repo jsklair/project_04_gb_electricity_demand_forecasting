@@ -1,0 +1,5 @@
+demand_quartile,rows,mean_demand_mw,naive_mae_mw,linear_mae_mw,nonlinear_mae_mw,neso_mae_mw
+Q1 lowest demand,4378,19319.05,1738.99,1645.08,1446.48,601.25
+Q2,4379,23207.75,1915.63,1420.09,1341.6,653.34
+Q3,4377,27095.17,2216.74,1605.56,1627.16,697.53
+Q4 highest demand,4378,35018.68,2843.63,1923.82,1886.88,763.66

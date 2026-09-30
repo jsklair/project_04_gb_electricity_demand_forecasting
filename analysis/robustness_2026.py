@@ -1,4 +1,5 @@
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 from google.cloud import bigquery
@@ -15,6 +16,12 @@ from forecasting_utils import (
 
 
 ROBUSTNESS_END_DATE = date(2026, 9, 2)
+
+TABLES_DIR = (
+    Path(__file__).resolve().parents[1]
+    / "outputs"
+    / "tables"
+)
 
 client = bigquery.Client(project=PROJECT_ID)
 
@@ -199,6 +206,11 @@ if len(missing_neso_rows) > 0:
 
     print(excluded_dates.to_string())
     print()
+else:
+    excluded_dates = pd.Series(
+        dtype="int64",
+        name="excluded_rows",
+    )
 
 # ---------------------------------------------------------------------------
 # Portfolio-model robustness on all model-eligible 2026 rows
@@ -313,3 +325,121 @@ monthly = (
 )
 
 print(monthly.to_string())
+
+# ---------------------------------------------------------------------------
+# Reproducible publication tables
+# ---------------------------------------------------------------------------
+
+TABLES_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+portfolio_metrics_table = (
+    pd.DataFrame.from_dict(
+        portfolio_metrics,
+        orient="index",
+    )
+    .rename_axis("model")
+    .reset_index()
+)
+
+portfolio_metrics_table.insert(
+    0,
+    "sample",
+    "all_model_eligible",
+)
+
+portfolio_metrics_table.insert(
+    1,
+    "rows",
+    len(robustness),
+)
+
+portfolio_metrics_table.insert(
+    2,
+    "start_date",
+    robustness["settlement_date"].min(),
+)
+
+portfolio_metrics_table.insert(
+    3,
+    "end_date",
+    robustness["settlement_date"].max(),
+)
+
+common_metrics_table = (
+    pd.DataFrame.from_dict(
+        common_metrics,
+        orient="index",
+    )
+    .rename_axis("model")
+    .reset_index()
+)
+
+common_metrics_table.insert(
+    0,
+    "sample",
+    "common_neso_comparison",
+)
+
+common_metrics_table.insert(
+    1,
+    "rows",
+    len(comparison_common),
+)
+
+common_metrics_table.insert(
+    2,
+    "start_date",
+    comparison_common["settlement_date"].min(),
+)
+
+common_metrics_table.insert(
+    3,
+    "end_date",
+    comparison_common["settlement_date"].max(),
+)
+
+robustness_metrics_table = pd.concat(
+    [
+        portfolio_metrics_table,
+        common_metrics_table,
+    ],
+    ignore_index=True,
+)
+
+robustness_metrics_table.to_csv(
+    TABLES_DIR / "robustness_metrics_2026.csv",
+    index=False,
+)
+
+monthly.reset_index().to_csv(
+    TABLES_DIR / "robustness_monthly_mae_2026.csv",
+    index=False,
+)
+
+coverage_exclusions = (
+    excluded_dates
+    .rename_axis("settlement_date")
+    .reset_index()
+)
+
+coverage_exclusions.to_csv(
+    TABLES_DIR / "robustness_neso_coverage_exclusions_2026.csv",
+    index=False,
+)
+
+print()
+print("Saved robustness publication tables")
+print("-----------------------------------")
+
+for filename in [
+    "robustness_metrics_2026.csv",
+    "robustness_monthly_mae_2026.csv",
+    "robustness_neso_coverage_exclusions_2026.csv",
+]:
+    print(
+        (TABLES_DIR / filename)
+        .relative_to(TABLES_DIR.parent.parent)
+    )
