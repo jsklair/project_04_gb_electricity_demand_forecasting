@@ -1,4 +1,6 @@
-﻿# NESO data acquisition
+# NESO data acquisition
+
+**Status:** This document records the completed source-acquisition milestone. Later BigQuery, dbt and modelling stages are complete and are described elsewhere in the repository.
 
 ## Purpose
 
@@ -77,10 +79,10 @@ The forecast-performance source contains four conflicting duplicate date/settlem
 
 In each case the duplicated records contain different forecast values. These records are retained and reported rather than arbitrarily deduplicated during acquisition.
 
-The current snapshot also contains only 19 forecast-performance rows for 2026-09-23. This is treated as a partial latest day until the source-refresh behaviour is investigated.
+The acquisition snapshot documented at this milestone contained only 19 forecast-performance rows for 2026-09-23. That partial latest day was retained as a source-quality observation rather than treated as a complete comparison date.
 
 Historic-demand schemas also vary between years. In particular, `FORECAST_ACTUAL_INDICATOR` is present in the 2026 resource but not in the earlier annual resources. Validation therefore checks the common fields required for this project rather than assuming every annual schema is identical.
 
-## Next stage
+## Subsequent project stage
 
-The next stage is to load the reproducible raw sources into BigQuery and define the production dbt source and staging layers. Source anomalies identified here will remain visible until their analytical treatment is explicitly decided.
+After this acquisition milestone, the reproducible raw sources were loaded into BigQuery and the production dbt source and staging layers were built. Those later stages are complete in the finished project; this document is retained as the record of the acquisition milestone and its source-quality findings.

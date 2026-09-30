@@ -1,4 +1,6 @@
-﻿# BigQuery raw ingestion
+# BigQuery raw ingestion
+
+**Status:** This document records the completed BigQuery raw-ingestion milestone. The downstream dbt and forecasting stages are complete.
 
 ## Purpose
 
@@ -73,12 +75,6 @@ All seven local-to-BigQuery row-count checks passed.
 
 The differing column counts across annual historic-demand resources reflect source-schema changes and are preserved in the raw layer rather than forced into a common schema prematurely.
 
-## Next stage
+## Subsequent project stage
 
-The next stage is the production dbt layer:
-
-- define the BigQuery raw tables as dbt sources;
-- standardise dates, settlement periods and numeric fields in staging models;
-- reconcile the varying annual historic-demand schemas;
-- add dbt source and data-quality tests;
-- preserve known source anomalies until their treatment is explicitly decided.
+After this raw-ingestion milestone, the production dbt source, staging and analytical layers were built, including explicit schema reconciliation, data-quality tests and treatment of known source anomalies. Those later stages are complete in the finished project; this document is retained as the record of the BigQuery raw-ingestion milestone.

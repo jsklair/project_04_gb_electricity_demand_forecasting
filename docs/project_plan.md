@@ -1,4 +1,6 @@
-﻿# Project Plan
+# Project Plan
+
+**Status:** This is the original project plan, retained to show the design agreed before the analysis was built. The completed implementation and final results are summarised in the repository README and published case study.
 
 ## Objective
 

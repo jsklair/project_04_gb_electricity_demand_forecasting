@@ -1,5 +1,7 @@
 # dbt source layer
 
+**Status:** This document records the completed dbt source-layer milestone. The downstream staging, analytical and forecasting layers are complete.
+
 ## Purpose
 
 The production dbt project sits between the reproducible BigQuery raw layer and the analytical staging models used later in the forecasting pipeline.
@@ -62,15 +64,6 @@ The first production run completed:
 
 `PASS=23 WARN=0 ERROR=0 SKIP=0`
 
-## Next stage
+## Subsequent project stage
 
-The next milestone is the staging layer.
-
-That work will:
-
-- parse raw STRING fields into deliberate data types;
-- standardise the different historic-demand date formats;
-- reconcile annual schema changes;
-- preserve 46- and 50-period daylight-saving days;
-- make explicit decisions about the known forecast-source duplicate grains;
-- prepare clean, documented inputs for later analytical/core models.
+After this source-layer milestone, the staging and analytical models were completed. They standardise dates and numeric types, reconcile annual schema changes, preserve legitimate 46- and 50-period daylight-saving days, retain explicit treatment of malformed forecast-source grains, and produce the leakage-controlled modelling dataset used by the final analysis.
